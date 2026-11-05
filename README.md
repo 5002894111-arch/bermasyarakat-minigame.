@@ -1,0 +1,1 @@
+# bermasyarakat-minigame.
