@@ -1,0 +1,1063 @@
+import React, { useState, useEffect } from 'react';
+import { 
+  Trophy, Shield, Sparkles, RefreshCw, Play, Volume2, VolumeX,
+  ArrowRight, Award, CheckCircle2, ArrowLeft,
+  Trash2, MessageSquare, Utensils, Moon, Sprout, PackageCheck, Car
+} from 'lucide-react';
+
+// --- CONFIG & CONSTANTS ---
+const MINIGAMES_DATA = [
+  {
+    id: 'gotong-royong',
+    level: 1,
+    title: 'Gotong Royong',
+    subTitle: 'Pilah Sampah Taman',
+    icon: Trash2,
+    color: 'from-emerald-500 to-green-600',
+    bgBadge: 'bg-emerald-100 text-emerald-800 border-emerald-300',
+    desc: 'Tangkap dan pilah sampah yang jatuh dari pohon ke tempat sampah organik & anorganik!'
+  },
+  {
+    id: 'musyawarah',
+    level: 2,
+    title: 'Musyawarah',
+    subTitle: 'Keseimbangan Opini RT',
+    icon: MessageSquare,
+    color: 'from-blue-500 to-cyan-600',
+    bgBadge: 'bg-blue-100 text-blue-800 border-blue-300',
+    desc: 'Jaga keseimbangan opini warga dengan menekan tombol Kiri/Kanan agar rapat mufakat!'
+  },
+  {
+    id: 'toleransi',
+    level: 3,
+    title: 'Toleransi & Silaturahmi',
+    subTitle: 'Antar Hantaran Tetangga',
+    icon: Utensils,
+    color: 'from-amber-500 to-orange-600',
+    bgBadge: 'bg-amber-100 text-amber-800 border-amber-300',
+    desc: 'Kirimkan makanan kesukaan tetangga ke rumah yang tepat sesuai keinginan mereka!'
+  },
+  {
+    id: 'keamanan',
+    level: 4,
+    title: 'Keamanan (Siskamling)',
+    subTitle: 'Patroli Senter Malam',
+    icon: Moon,
+    color: 'from-indigo-600 to-purple-700',
+    bgBadge: 'bg-indigo-100 text-indigo-800 border-indigo-300',
+    desc: 'Gunakan lampu senter di malam hari untuk menemukan bahaya atau barang warga yang hilang!'
+  },
+  {
+    id: 'penghijauan',
+    level: 5,
+    title: 'Kebersihan & Penghijauan',
+    subTitle: 'Penyiraman Bibit Taman',
+    icon: Sprout,
+    color: 'from-teal-500 to-emerald-600',
+    bgBadge: 'bg-teal-100 text-teal-800 border-teal-300',
+    desc: 'Siram bibit tanaman yang haus sebelum layu agar kampung menjadi asri!'
+  },
+  {
+    id: 'kepedulian',
+    level: 6,
+    title: 'Kepedulian Sosial',
+    subTitle: 'Packing Paket Sembako',
+    icon: PackageCheck,
+    color: 'from-rose-500 to-pink-600',
+    bgBadge: 'bg-rose-100 text-rose-800 border-rose-300',
+    desc: 'Masukkan bahan pokok sesuai pesanan bantuan bencana ke dalam kotak sembako!'
+  },
+  {
+    id: 'ketaatan',
+    level: 7,
+    title: 'Ketaatan Aturan RT',
+    subTitle: 'Pengatur Parkir Kampung',
+    icon: Car,
+    color: 'from-violet-500 to-purple-600',
+    bgBadge: 'bg-purple-100 text-purple-800 border-purple-300',
+    desc: 'Arahkan mobil warga ke slot parkir yang benar sesuai warna agar jalanan lancar!'
+  }
+];
+
+export default function App() {
+  const [screen, setScreen] = useState('menu'); // menu, select, game, level-cleared, victory
+  const [gameMode, setGameMode] = useState('story'); // story or free
+  const [currentLevelIdx, setCurrentLevelIdx] = useState(0);
+  const [totalScore, setTotalScore] = useState(0);
+  const [levelScores, setLevelScores] = useState(Array(7).fill(0));
+  const [soundEnabled, setSoundEnabled] = useState(true);
+
+  // Trigger sound effect simulation (Web Audio API)
+  const playSound = (type = 'click') => {
+    if (!soundEnabled) return;
+    try {
+      const ctx = new (window.AudioContext || window.webkitAudioContext)();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+
+      if (type === 'score') {
+        osc.frequency.setValueAtTime(523.25, ctx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(880, ctx.currentTime + 0.15);
+        gain.gain.setValueAtTime(0.1, ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.15);
+        osc.start();
+        osc.stop(ctx.currentTime + 0.15);
+      } else if (type === 'fail') {
+        osc.frequency.setValueAtTime(220, ctx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(110, ctx.currentTime + 0.2);
+        gain.gain.setValueAtTime(0.15, ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.2);
+        osc.start();
+        osc.stop(ctx.currentTime + 0.2);
+      } else if (type === 'win') {
+        osc.frequency.setValueAtTime(440, ctx.currentTime);
+        osc.frequency.setValueAtTime(554.37, ctx.currentTime + 0.1);
+        osc.frequency.setValueAtTime(659.25, ctx.currentTime + 0.2);
+        gain.gain.setValueAtTime(0.1, ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.35);
+        osc.start();
+        osc.stop(ctx.currentTime + 0.35);
+      } else {
+        osc.frequency.setValueAtTime(300, ctx.currentTime);
+        gain.gain.setValueAtTime(0.05, ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.05);
+        osc.start();
+        osc.stop(ctx.currentTime + 0.05);
+      }
+    } catch (e) {
+      // Audio fallback
+    }
+  };
+
+  const startStoryMode = () => {
+    playSound('click');
+    setGameMode('story');
+    setCurrentLevelIdx(0);
+    setTotalScore(0);
+    setLevelScores(Array(7).fill(0));
+    setScreen('game');
+  };
+
+  const startFreeLevel = (idx) => {
+    playSound('click');
+    setGameMode('free');
+    setCurrentLevelIdx(idx);
+    setScreen('game');
+  };
+
+  const handleLevelComplete = (scoreObtained) => {
+    playSound('win');
+    const newScores = [...levelScores];
+    newScores[currentLevelIdx] = Math.max(newScores[currentLevelIdx], scoreObtained);
+    setLevelScores(newScores);
+
+    const newTotal = newScores.reduce((a, b) => a + b, 0);
+    setTotalScore(newTotal);
+
+    if (gameMode === 'story') {
+      if (currentLevelIdx < 6) {
+        setScreen('level-cleared');
+      } else {
+        setScreen('victory');
+      }
+    } else {
+      setScreen('level-cleared');
+    }
+  };
+
+  const handleNextLevel = () => {
+    if (currentLevelIdx < 6) {
+      setCurrentLevelIdx(prev => prev + 1);
+      setScreen('game');
+    } else {
+      setScreen('victory');
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-slate-900 text-slate-100 flex flex-col font-sans select-none overflow-x-hidden">
+      {/* Top Navigation Bar */}
+      <header className="bg-slate-800/80 backdrop-blur border-b border-slate-700 sticky top-0 z-50">
+        <div className="max-w-5xl mx-auto px-4 py-3 flex justify-between items-center">
+          <div className="flex items-center gap-3 cursor-pointer" onClick={() => setScreen('menu')}>
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-emerald-500 to-teal-400 flex items-center justify-center font-black text-xl text-slate-900 shadow-lg shadow-emerald-500/20">
+              7K
+            </div>
+            <div>
+              <h1 className="font-extrabold text-base sm:text-lg tracking-wide text-white">7KAIH Arcade 2D</h1>
+              <p className="text-xs text-emerald-400 font-medium">Petualangan Warga Teladan</p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-3">
+            <div className="bg-slate-900/80 border border-slate-700 px-3 py-1.5 rounded-full flex items-center gap-2">
+              <Trophy className="w-4 h-4 text-amber-400" />
+              <span className="text-xs font-bold text-amber-300">{totalScore} Pts</span>
+            </div>
+
+            <button 
+              onClick={() => setSoundEnabled(!soundEnabled)}
+              className="p-2 rounded-xl bg-slate-700 hover:bg-slate-600 text-slate-300 transition"
+              title="Toggle Audio"
+            >
+              {soundEnabled ? <Volume2 className="w-4 h-4 text-emerald-400" /> : <VolumeX className="w-4 h-4 text-slate-500" />}
+            </button>
+          </div>
+        </div>
+      </header>
+
+      {/* Main Game Screen Router */}
+      <main className="flex-1 max-w-5xl w-full mx-auto p-4 flex flex-col justify-center">
+        {screen === 'menu' && (
+          <MenuScreen 
+            onStartStory={startStoryMode} 
+            onSelectLevel={() => setScreen('select')} 
+          />
+        )}
+
+        {screen === 'select' && (
+          <LevelSelectScreen 
+            levelScores={levelScores}
+            onSelectLevel={startFreeLevel}
+            onBack={() => setScreen('menu')}
+          />
+        )}
+
+        {screen === 'game' && (
+          <ActiveMinigameContainer 
+            levelData={MINIGAMES_DATA[currentLevelIdx]}
+            onComplete={handleLevelComplete}
+            onQuit={() => setScreen('menu')}
+            playSound={playSound}
+          />
+        )}
+
+        {screen === 'level-cleared' && (
+          <LevelClearedModal 
+            levelData={MINIGAMES_DATA[currentLevelIdx]}
+            score={levelScores[currentLevelIdx]}
+            isStory={gameMode === 'story'}
+            hasNext={currentLevelIdx < 6}
+            onNext={handleNextLevel}
+            onReplay={() => setScreen('game')}
+            onMenu={() => setScreen('menu')}
+          />
+        )}
+
+        {screen === 'victory' && (
+          <VictoryScreen 
+            totalScore={totalScore}
+            levelScores={levelScores}
+            onRestart={startStoryMode}
+            onMenu={() => setScreen('menu')}
+          />
+        )}
+      </main>
+    </div>
+  );
+}
+
+// ============================================================================
+// MENU SCREEN
+// ============================================================================
+function MenuScreen({ onStartStory, onSelectLevel }) {
+  return (
+    <div className="max-w-2xl mx-auto w-full text-center space-y-8 my-auto py-6">
+      <div className="space-y-3">
+        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs font-extrabold uppercase tracking-widest">
+          <Sparkles className="w-3.5 h-3.5" /> Mini-Game Arcade Bermasyarakat
+        </div>
+        <h2 className="text-4xl sm:text-5xl font-black text-white tracking-tight">
+          Satu Langkah Menjadi <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-teal-300">Warga Teladan</span>
+        </h2>
+        <p className="text-slate-400 text-sm max-w-lg mx-auto">
+          Kuasai 7 tantangan minigame interaktif berbasis nilai-nilai 7KAIH untuk membangun lingkungan kampung yang rukun, bersih, dan aman.
+        </p>
+      </div>
+
+      <div className="flex flex-col sm:flex-row gap-4 justify-center max-w-md mx-auto">
+        <button
+          onClick={onStartStory}
+          className="flex-1 py-4 px-6 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 font-black rounded-2xl shadow-lg shadow-emerald-500/20 active:scale-95 transition flex items-center justify-center gap-2 text-base"
+        >
+          <Play className="w-5 h-5 fill-current" /> Mode Petualangan
+        </button>
+        <button
+          onClick={onSelectLevel}
+          className="flex-1 py-4 px-6 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-white font-bold rounded-2xl active:scale-95 transition flex items-center justify-center gap-2 text-base"
+        >
+          <Award className="w-5 h-5 text-amber-400" /> Pilih Minigame
+        </button>
+      </div>
+
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-4 border-t border-slate-800 text-left">
+        {MINIGAMES_DATA.slice(0, 4).map((m) => {
+          const IconComp = m.icon;
+          return (
+            <div key={m.id} className="bg-slate-800/50 border border-slate-800 p-3 rounded-2xl flex items-center gap-3">
+              <div className="p-2 rounded-xl bg-slate-700/50 text-emerald-400">
+                <IconComp className="w-4 h-4" />
+              </div>
+              <div>
+                <div className="text-xs font-bold text-slate-200">{m.title}</div>
+                <div className="text-[10px] text-slate-400">Level {m.level}</div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ============================================================================
+// LEVEL SELECT SCREEN
+// ============================================================================
+function LevelSelectScreen({ levelScores, onSelectLevel, onBack }) {
+  return (
+    <div className="max-w-3xl mx-auto w-full space-y-6 my-auto py-4">
+      <div className="flex items-center justify-between">
+        <button 
+          onClick={onBack}
+          className="px-3 py-1.5 rounded-xl bg-slate-800 border border-slate-700 text-xs font-bold text-slate-300 hover:text-white flex items-center gap-2 transition"
+        >
+          <ArrowLeft className="w-4 h-4" /> Kembali
+        </button>
+        <h3 className="text-lg font-black text-white">Pilih Minigame 7KAIH</h3>
+        <div className="w-20"></div>
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        {MINIGAMES_DATA.map((item, idx) => {
+          const IconComp = item.icon;
+          return (
+            <div 
+              key={item.id}
+              onClick={() => onSelectLevel(idx)}
+              className="bg-slate-800/80 border border-slate-700/80 hover:border-emerald-500/80 p-4 rounded-2xl cursor-pointer transition group flex items-start gap-4"
+            >
+              <div className={`p-3 rounded-2xl bg-gradient-to-tr ${item.color} text-white shadow-md`}>
+                <IconComp className="w-6 h-6" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex justify-between items-center">
+                  <span className="text-[10px] font-extrabold text-emerald-400 uppercase tracking-wider">Level {item.level}</span>
+                  <span className="text-xs font-black text-amber-400">{levelScores[idx]} Pts</span>
+                </div>
+                <h4 className="font-bold text-white text-sm truncate group-hover:text-emerald-300 transition">{item.title}</h4>
+                <p className="text-xs text-slate-400 line-clamp-2 mt-1">{item.desc}</p>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ============================================================================
+// ACTIVE MINIGAME CONTAINER CONTAINER
+// ============================================================================
+function ActiveMinigameContainer({ levelData, onComplete, onQuit, playSound }) {
+  const IconComp = levelData.icon;
+
+  return (
+    <div className="max-w-2xl mx-auto w-full space-y-4 my-auto">
+      {/* Minigame Header */}
+      <div className="bg-slate-800/80 border border-slate-700 p-4 rounded-2xl flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className={`p-2.5 rounded-xl bg-gradient-to-tr ${levelData.color} text-white`}>
+            <IconComp className="w-5 h-5" />
+          </div>
+          <div>
+            <span className="text-[10px] font-extrabold text-emerald-400 uppercase tracking-widest">Level {levelData.level} - 7KAIH</span>
+            <h3 className="font-black text-white text-sm sm:text-base leading-none">{levelData.title}</h3>
+          </div>
+        </div>
+        <button 
+          onClick={onQuit}
+          className="px-3 py-1.5 rounded-xl bg-slate-700 hover:bg-slate-600 text-xs font-bold text-slate-300 transition"
+        >
+          Keluar
+        </button>
+      </div>
+
+      {/* Minigame Body Router */}
+      {levelData.id === 'gotong-royong' && <Minigame1GotongRoyong onComplete={onComplete} playSound={playSound} />}
+      {levelData.id === 'musyawarah' && <Minigame2Musyawarah onComplete={onComplete} playSound={playSound} />}
+      {levelData.id === 'toleransi' && <Minigame3Toleransi onComplete={onComplete} playSound={playSound} />}
+      {levelData.id === 'keamanan' && <Minigame4Keamanan onComplete={onComplete} playSound={playSound} />}
+      {levelData.id === 'penghijauan' && <Minigame5Penghijauan onComplete={onComplete} playSound={playSound} />}
+      {levelData.id === 'kepedulian' && <Minigame6Kepedulian onComplete={onComplete} playSound={playSound} />}
+      {levelData.id === 'ketaatan' && <Minigame7Ketaatan onComplete={onComplete} playSound={playSound} />}
+    </div>
+  );
+}
+
+// ============================================================================
+// MINIGAME 1: GOTONG ROYONG (Catch & Sort Trash - EASY & FUN BALANCED)
+// ============================================================================
+function Minigame1GotongRoyong({ onComplete, playSound }) {
+  const [score, setScore] = useState(0);
+  const [timeLeft, setTimeLeft] = useState(25);
+  const [basketX, setBasketX] = useState(50); // %
+  const [basketType, setBasketType] = useState('organik'); // 'organik' | 'anorganik'
+  const [items, setItems] = useState([]);
+
+  // Toggle basket type helper
+  const toggleBasket = () => {
+    playSound('click');
+    setBasketType(prev => prev === 'organik' ? 'anorganik' : 'organik');
+  };
+
+  // Keyboard shortcut (Spacebar)
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.code === 'Space') {
+        e.preventDefault();
+        toggleBasket();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
+  // Spawn Items with balanced speed
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setTimeLeft(prev => {
+        if (prev <= 1) {
+          clearInterval(timer);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    const spawner = setInterval(() => {
+      const isOrganik = Math.random() > 0.5;
+      const newItem = {
+        id: Date.now() + Math.random(),
+        x: Math.floor(Math.random() * 76) + 12, // Keep within safe margins (12% - 88%)
+        y: 0,
+        type: isOrganik ? 'organik' : 'anorganik',
+        label: isOrganik ? '🍂' : '🍾',
+        speed: Math.random() * 1.0 + 1.2 // Kecepatan ramah pemain (1.2 - 2.2)
+      };
+      setItems(prev => [...prev, newItem]);
+    }, 1100);
+
+    return () => {
+      clearInterval(timer);
+      clearInterval(spawner);
+    };
+  }, []);
+
+  // Game Loop Animation & Collision
+  useEffect(() => {
+    if (timeLeft <= 0) {
+      onComplete(score * 10);
+      return;
+    }
+
+    const anim = requestAnimationFrame(() => {
+      setItems(prev => prev.map(item => ({ ...item, y: item.y + item.speed })).filter(item => {
+        if (item.y >= 75 && item.y <= 92) {
+          if (Math.abs(item.x - basketX) < 18) {
+            if (item.type === basketType) {
+              setScore(s => s + 10);
+              playSound('score');
+            } else {
+              setScore(s => Math.max(0, s + 2));
+              playSound('fail');
+            }
+            return false;
+          }
+        }
+        return item.y < 100;
+      }));
+    });
+
+    return () => cancelAnimationFrame(anim);
+  }, [items, basketX, basketType, timeLeft]);
+
+  return (
+    <div className="w-full max-w-lg mx-auto h-[390px] bg-slate-900 rounded-2xl relative overflow-hidden flex flex-col justify-between border border-slate-800">
+      {/* HUD */}
+      <div className="p-3 bg-slate-800/90 flex justify-between items-center text-xs font-extrabold z-10 border-b border-slate-700">
+        <span className="text-emerald-400 text-sm">Skor: {score}</span>
+        <span className="text-amber-400">Sisa Waktu: {timeLeft}s</span>
+        <button 
+          onClick={toggleBasket}
+          className={`px-3 py-1.5 rounded-xl border text-xs font-extrabold shadow-md transition-all active:scale-95 ${basketType === 'organik' ? 'bg-green-600 text-white border-green-300' : 'bg-blue-600 text-white border-blue-300'}`}
+        >
+          Tong: {basketType === 'organik' ? '🌿 Organik' : '🥤 Anorganik'}
+        </button>
+      </div>
+
+      {/* Falling Items Playfield */}
+      <div 
+        className="flex-1 relative cursor-pointer touch-none"
+        onMouseMove={(e) => {
+          const rect = e.currentTarget.getBoundingClientRect();
+          const x = ((e.clientX - rect.left) / rect.width) * 100;
+          setBasketX(Math.max(12, Math.min(88, x)));
+        }}
+        onTouchMove={(e) => {
+          const rect = e.currentTarget.getBoundingClientRect();
+          const touch = e.touches[0];
+          const x = ((touch.clientX - rect.left) / rect.width) * 100;
+          setBasketX(Math.max(12, Math.min(88, x)));
+        }}
+      >
+        {items.map(item => (
+          <div 
+            key={item.id} 
+            className="absolute text-3xl transform -translate-x-1/2 drop-shadow-md transition-transform"
+            style={{ left: `${item.x}%`, top: `${item.y}%` }}
+          >
+            {item.label}
+          </div>
+        ))}
+
+        {/* Player Basket */}
+        <div 
+          className={`absolute bottom-2 w-28 h-12 rounded-2xl border-2 flex items-center justify-center font-black text-xs transform -translate-x-1/2 shadow-xl transition-all duration-75 ${basketType === 'organik' ? 'bg-gradient-to-r from-green-600 to-emerald-500 border-green-300 text-white' : 'bg-gradient-to-r from-blue-600 to-cyan-500 border-blue-300 text-white'}`}
+          style={{ left: `${basketX}%` }}
+        >
+          {basketType === 'organik' ? '🌿 ORGANIK' : '🥤 ANORGANIK'}
+        </div>
+      </div>
+
+      {/* Easy Controls Bar */}
+      <div className="p-2.5 bg-slate-950 border-t border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-2 z-10">
+        <span className="text-[11px] text-slate-400">
+          💡 Geser Layar/Kursor & Tekan <kbd className="px-1.5 py-0.5 bg-slate-800 border border-slate-700 rounded text-amber-300 font-bold">Space</kbd>
+        </span>
+        <button 
+          onClick={toggleBasket}
+          className="w-full sm:w-auto px-4 py-2 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 font-black rounded-xl text-xs shadow-md active:scale-95 transition"
+        >
+          🔄 Ganti Tong (Klik / Tap)
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ============================================================================
+// MINIGAME 2: MUSYAWARAH (Balance Board Consensus)
+// ============================================================================
+function Minigame2Musyawarah({ onComplete, playSound }) {
+  const [balance, setBalance] = useState(0); // -50 (Kiri) to +50 (Kanan)
+  const [timeBalanced, setTimeBalanced] = useState(0);
+  const targetTime = 12;
+
+  useEffect(() => {
+    const tiltInterval = setInterval(() => {
+      const shift = (Math.random() - 0.5) * 8;
+      setBalance(b => {
+        const next = b + shift;
+        if (Math.abs(next) >= 50) {
+          playSound('fail');
+          return next > 0 ? 49 : -49;
+        }
+        return next;
+      });
+    }, 200);
+
+    const progressTimer = setInterval(() => {
+      setBalance(b => {
+        if (Math.abs(b) < 25) {
+          setTimeBalanced(t => {
+            if (t >= targetTime) {
+              clearInterval(tiltInterval);
+              clearInterval(progressTimer);
+              onComplete(100);
+            }
+            return t + 1;
+          });
+        }
+        return b;
+      });
+    }, 1000);
+
+    return () => {
+      clearInterval(tiltInterval);
+      clearInterval(progressTimer);
+    };
+  }, []);
+
+  const pushBalance = (dir) => {
+    playSound('score');
+    setBalance(b => Math.max(-48, Math.min(48, b + dir * 12)));
+  };
+
+  return (
+    <div className="w-full max-w-lg mx-auto h-[380px] bg-slate-900 rounded-2xl p-4 flex flex-col justify-between border border-slate-800 text-center">
+      <div>
+        <h4 className="font-bold text-white text-sm">Seimbangkan Pendapat Warga!</h4>
+        <p className="text-xs text-slate-400">Jaga jarum tetap di area HIJAU selama {targetTime} detik</p>
+      </div>
+
+      <div className="space-y-1">
+        <div className="flex justify-between text-xs font-bold">
+          <span className="text-slate-400">Konsensus Tercapai:</span>
+          <span className="text-emerald-400">{timeBalanced}s / {targetTime}s</span>
+        </div>
+        <div className="w-full bg-slate-800 h-3 rounded-full overflow-hidden border border-slate-700">
+          <div className="bg-emerald-500 h-full transition-all duration-300" style={{ width: `${(timeBalanced / targetTime) * 100}%` }}></div>
+        </div>
+      </div>
+
+      <div className="relative my-auto h-32 bg-slate-950 rounded-2xl border border-slate-800 flex items-center justify-center overflow-hidden">
+        <div className="absolute w-28 h-full bg-emerald-500/10 border-x border-emerald-500/40"></div>
+        <div 
+          className="w-72 h-4 bg-slate-700 rounded-full relative transition-transform duration-100 flex items-center justify-between px-2"
+          style={{ transform: `rotate(${balance * 0.5}deg)` }}
+        >
+          <span className="text-xs">🗣️ Pihak A</span>
+          <div className="w-6 h-6 rounded-full bg-amber-400 absolute left-1/2 top-1/2 transform -translate-x-1/2 -translate-y-1/2 border-2 border-slate-900 shadow-md"></div>
+          <span className="text-xs">🗣️ Pihak B</span>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-4">
+        <button 
+          onClick={() => pushBalance(-1)}
+          className="py-3 bg-blue-600 hover:bg-blue-500 active:scale-95 text-white font-extrabold rounded-xl shadow-lg transition text-xs"
+        >
+          ⬅️ Dorong Kiri
+        </button>
+        <button 
+          onClick={() => pushBalance(1)}
+          className="py-3 bg-cyan-600 hover:bg-cyan-500 active:scale-95 text-white font-extrabold rounded-xl shadow-lg transition text-xs"
+        >
+          Dorong Kanan ➡️
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ============================================================================
+// MINIGAME 3: TOLERANSI (Food Delivery Matching)
+// ============================================================================
+function Minigame3Toleransi({ onComplete, playSound }) {
+  const [score, setScore] = useState(0);
+  const [targetFood, setTargetFood] = useState('🍛 Nasi Tumpeng');
+
+  const foods = ['🍛 Nasi Tumpeng', '🍰 Kue Bolu', '🧃 Es Cendol', '🍎 Buah Segar'];
+
+  const handleDeliver = (selected) => {
+    if (selected === targetFood) {
+      playSound('score');
+      const nextScore = score + 25;
+      setScore(nextScore);
+      if (nextScore >= 100) {
+        onComplete(100);
+        return;
+      }
+      const nextFood = foods[Math.floor(Math.random() * foods.length)];
+      setTargetFood(nextFood);
+    } else {
+      playSound('fail');
+    }
+  };
+
+  return (
+    <div className="w-full max-w-lg mx-auto h-[380px] bg-slate-900 rounded-2xl p-4 flex flex-col justify-between border border-slate-800">
+      <div className="flex justify-between items-center text-xs font-extrabold">
+        <span className="text-amber-400">Silaturahmi Tetangga</span>
+        <span className="text-emerald-400">Kepuasan Warga: {score}%</span>
+      </div>
+
+      <div className="bg-slate-800 border border-slate-700 p-4 rounded-2xl text-center space-y-2">
+        <div className="text-3xl animate-bounce">🏡</div>
+        <p className="text-xs text-slate-300">Tetangga Pak RT sedang syukuran dan menginginkan:</p>
+        <div className="inline-block px-4 py-2 bg-amber-500/20 border border-amber-500/40 rounded-xl text-amber-300 font-extrabold text-sm">
+          {targetFood}
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-3">
+        {foods.map((food, i) => (
+          <button
+            key={i}
+            onClick={() => handleDeliver(food)}
+            className="p-3 bg-slate-800 hover:bg-slate-700 border border-slate-700 hover:border-amber-500 rounded-xl font-bold text-xs text-slate-200 transition active:scale-95"
+          >
+            Hantarkan {food}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ============================================================================
+// MINIGAME 4: KEAMANAN SISKAMLING (Flashlight Search)
+// ============================================================================
+function Minigame4Keamanan({ onComplete, playSound }) {
+  const [foundCount, setFoundCount] = useState(0);
+  const [cursorPos, setCursorPos] = useState({ x: 50, y: 50 });
+  const [targetPos, setTargetPos] = useState({ x: 30, y: 40 });
+
+  const targetGoal = 4;
+
+  const handleFound = () => {
+    playSound('score');
+    const nextCount = foundCount + 1;
+    setFoundCount(nextCount);
+
+    if (nextCount >= targetGoal) {
+      onComplete(100);
+    } else {
+      setTargetPos({
+        x: Math.floor(Math.random() * 70) + 15,
+        y: Math.floor(Math.random() * 70) + 15
+      });
+    }
+  };
+
+  return (
+    <div 
+      className="w-full max-w-lg mx-auto h-[380px] bg-slate-950 rounded-2xl relative overflow-hidden cursor-crosshair border border-slate-800"
+      onMouseMove={(e) => {
+        const rect = e.currentTarget.getBoundingClientRect();
+        setCursorPos({
+          x: ((e.clientX - rect.left) / rect.width) * 100,
+          y: ((e.clientY - rect.top) / rect.height) * 100
+        });
+      }}
+    >
+      <div 
+        className="absolute inset-0 pointer-events-none z-10"
+        style={{
+          background: `radial-gradient(circle 60px at ${cursorPos.x}% ${cursorPos.y}%, transparent 0%, rgba(2, 6, 23, 0.98) 100%)`
+        }}
+      ></div>
+
+      <div 
+        onClick={handleFound}
+        className="absolute transform -translate-x-1/2 -translate-y-1/2 text-2xl cursor-pointer p-2 z-0"
+        style={{ left: `${targetPos.x}%`, top: `${targetPos.y}%` }}
+      >
+        🔦 🔑
+      </div>
+
+      <div className="absolute top-3 left-3 right-3 flex justify-between items-center text-xs font-extrabold text-white z-20 pointer-events-none">
+        <span className="bg-indigo-900/80 px-3 py-1 rounded-full border border-indigo-500">
+          Patroli Malam Siskamling
+        </span>
+        <span className="bg-emerald-900/80 px-3 py-1 rounded-full border border-emerald-500 text-emerald-300">
+          Ditemukan: {foundCount} / {targetGoal}
+        </span>
+      </div>
+
+      <div className="absolute bottom-3 left-1/2 transform -translate-x-1/2 text-[10px] text-slate-400 z-20 pointer-events-none">
+        Arahkan lampu senter untuk menemukan kunci/barang warga yang hilang!
+      </div>
+    </div>
+  );
+}
+
+// ============================================================================
+// MINIGAME 5: PENGHIJAUAN (Watering Seeds)
+// ============================================================================
+function Minigame5Penghijauan({ onComplete, playSound }) {
+  const [plants, setPlants] = useState([
+    { id: 1, water: 20 },
+    { id: 2, water: 50 },
+    { id: 3, water: 10 }
+  ]);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setPlants(prev => prev.map(p => ({ ...p, water: Math.max(0, p.water - 4) })));
+    }, 300);
+
+    return () => clearInterval(interval);
+  }, []);
+
+  const waterPlant = (id) => {
+    playSound('score');
+    setPlants(prev => {
+      const updated = prev.map(p => p.id === id ? { ...p, water: Math.min(100, p.water + 25) } : p);
+      if (updated.every(p => p.water >= 90)) {
+        onComplete(100);
+      }
+      return updated;
+    });
+  };
+
+  return (
+    <div className="w-full max-w-lg mx-auto h-[380px] bg-slate-900 rounded-2xl p-4 flex flex-col justify-between border border-slate-800">
+      <div className="text-center space-y-1">
+        <h4 className="font-bold text-xs text-teal-400 uppercase tracking-wider">Taman Kampung Hijau</h4>
+        <p className="text-xs text-slate-300">Sirami semua tanaman hingga level air penuh (90%+)!</p>
+      </div>
+
+      <div className="grid grid-cols-3 gap-3 my-auto">
+        {plants.map((plant) => (
+          <div key={plant.id} className="bg-slate-800 border border-slate-700 p-3 rounded-2xl text-center space-y-2 flex flex-col items-center">
+            <div className="text-4xl">
+              {plant.water > 70 ? '🌻' : plant.water > 30 ? '🌿' : '🥀'}
+            </div>
+
+            <div className="w-full bg-slate-900 h-2.5 rounded-full overflow-hidden border border-slate-700">
+              <div 
+                className={`h-full transition-all ${plant.water < 30 ? 'bg-rose-500' : 'bg-teal-400'}`}
+                style={{ width: `${plant.water}%` }}
+              ></div>
+            </div>
+
+            <button 
+              onClick={() => waterPlant(plant.id)}
+              className="w-full py-1.5 bg-teal-600 hover:bg-teal-500 text-white font-extrabold rounded-xl text-xs active:scale-95 transition"
+            >
+              💧 Siram
+            </button>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ============================================================================
+// MINIGAME 6: KEPEDULIAN SOSIAL (Sembako Packing)
+// ============================================================================
+function Minigame6Kepedulian({ onComplete, playSound }) {
+  const [packed, setPacked] = useState([]);
+  const recipe = ['🍚 Beras', '📦 Minyak', '🍜 Mie Instan'];
+
+  const addItem = (item) => {
+    playSound('score');
+    const updated = [...packed, item];
+    setPacked(updated);
+
+    if (updated.length === recipe.length) {
+      if (updated.every((val, idx) => val === recipe[idx])) {
+        onComplete(100);
+      } else {
+        playSound('fail');
+        setPacked([]);
+      }
+    }
+  };
+
+  return (
+    <div className="w-full max-w-lg mx-auto h-[380px] bg-slate-900 rounded-2xl p-4 flex flex-col justify-between border border-slate-800">
+      <div className="text-center space-y-1">
+        <h4 className="font-bold text-xs text-rose-400 uppercase tracking-wider">Paket Bantuan Sembako</h4>
+        <p className="text-xs text-slate-300">Kemas sembako sesuai urutan resep bantuan!</p>
+      </div>
+
+      <div className="bg-slate-800 border border-slate-700 p-3 rounded-2xl text-center space-y-2">
+        <div className="text-xs text-slate-400 font-bold">Urutan Sembako:</div>
+        <div className="flex justify-center gap-2">
+          {recipe.map((r, idx) => (
+            <span key={idx} className="px-2.5 py-1 bg-slate-900 border border-slate-700 rounded-lg text-xs font-bold text-slate-200">
+              {r}
+            </span>
+          ))}
+        </div>
+      </div>
+
+      <div className="bg-rose-950/30 border border-rose-500/30 p-3 rounded-2xl min-h-[70px] flex items-center justify-center gap-2">
+        {packed.length === 0 ? (
+          <span className="text-xs text-slate-500">Kotak Sembako Masih Kosong...</span>
+        ) : (
+          packed.map((p, i) => (
+            <span key={i} className="px-2 py-1 bg-rose-500/20 border border-rose-500 text-rose-300 text-xs font-bold rounded-lg">
+              {p}
+            </span>
+          ))
+        )}
+      </div>
+
+      <div className="grid grid-cols-3 gap-2">
+        {['🍚 Beras', '📦 Minyak', '🍜 Mie Instan'].map((item, i) => (
+          <button 
+            key={i}
+            onClick={() => addItem(item)}
+            className="py-3 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-xl font-bold text-xs text-slate-200 transition active:scale-95"
+          >
+            + {item}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ============================================================================
+// MINIGAME 7: KETAATAN ATURAN RT (Parking Traffic)
+// ============================================================================
+function Minigame7Ketaatan({ onComplete, playSound }) {
+  const [carLane, setCarLane] = useState(1);
+  const [targetLane, setTargetLane] = useState(2);
+  const [score, setScore] = useState(0);
+
+  const parkCar = () => {
+    if (carLane === targetLane) {
+      playSound('score');
+      const nextScore = score + 35;
+      setScore(nextScore);
+      if (nextScore >= 100) {
+        onComplete(100);
+        return;
+      }
+      setTargetLane(Math.floor(Math.random() * 3) + 1);
+    } else {
+      playSound('fail');
+    }
+  };
+
+  return (
+    <div className="w-full max-w-lg mx-auto h-[380px] bg-slate-900 rounded-2xl p-4 flex flex-col justify-between border border-slate-800">
+      <div className="flex justify-between items-center text-xs font-extrabold">
+        <span className="text-purple-400">Tertib Parkir Kampung</span>
+        <span className="text-emerald-400">Poin Tertib: {score}</span>
+      </div>
+
+      <div className="grid grid-cols-3 gap-2 my-auto">
+        {[1, 2, 3].map((lane) => (
+          <div 
+            key={lane}
+            onClick={() => setCarLane(lane)}
+            className={`h-40 rounded-2xl border-2 border-dashed flex flex-col items-center justify-between p-2 cursor-pointer transition ${carLane === lane ? 'bg-purple-900/30 border-purple-500' : 'bg-slate-800 border-slate-700'}`}
+          >
+            <span className="text-[10px] font-bold text-slate-400">Slot {lane}</span>
+            
+            {targetLane === lane && (
+              <span className="text-xs font-bold text-amber-400 animate-pulse">🅿️ Area Wajib</span>
+            )}
+
+            {carLane === lane && (
+              <div className="text-3xl animate-bounce">🚗</div>
+            )}
+          </div>
+        ))}
+      </div>
+
+      <button 
+        onClick={parkCar}
+        className="w-full py-3 bg-purple-600 hover:bg-purple-500 text-white font-extrabold rounded-xl text-xs active:scale-95 transition"
+      >
+        Parkirkan Mobil Sesuai Aturan RT!
+      </button>
+    </div>
+  );
+}
+
+// ============================================================================
+// MODAL: LEVEL CLEARED
+// ============================================================================
+function LevelClearedModal({ levelData, score, isStory, hasNext, onNext, onReplay, onMenu }) {
+  return (
+    <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+      <div className="bg-slate-800 border border-slate-700 max-w-md w-full rounded-3xl p-6 text-center space-y-6 shadow-2xl">
+        <div className="inline-flex p-4 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400">
+          <CheckCircle2 className="w-12 h-12" />
+        </div>
+
+        <div>
+          <span className="text-xs font-bold text-emerald-400 uppercase tracking-widest">Level Selesai!</span>
+          <h3 className="text-2xl font-black text-white mt-1">{levelData.title}</h3>
+          <p className="text-xs text-slate-400 mt-1">{levelData.desc}</p>
+        </div>
+
+        <div className="bg-slate-900 border border-slate-700/60 p-4 rounded-2xl flex justify-around">
+          <div>
+            <span className="text-[10px] font-bold text-slate-400 block">Skor Diraih</span>
+            <span className="text-xl font-black text-amber-400">+{score} Pts</span>
+          </div>
+          <div className="w-px bg-slate-700"></div>
+          <div>
+            <span className="text-[10px] font-bold text-slate-400 block">Nilai KAIH</span>
+            <span className="text-xl font-black text-emerald-400">100%</span>
+          </div>
+        </div>
+
+        <div className="flex gap-3">
+          <button 
+            onClick={onReplay}
+            className="flex-1 py-3 bg-slate-700 hover:bg-slate-600 text-slate-200 font-bold rounded-xl text-xs transition"
+          >
+            Ulangi
+          </button>
+          
+          {isStory && hasNext ? (
+            <button 
+              onClick={onNext}
+              className="flex-1 py-3 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black rounded-xl text-xs transition flex items-center justify-center gap-1"
+            >
+              Lanjut Level <ArrowRight className="w-4 h-4" />
+            </button>
+          ) : (
+            <button 
+              onClick={onMenu}
+              className="flex-1 py-3 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black rounded-xl text-xs transition"
+            >
+              Menu Utama
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ============================================================================
+// VICTORY SCREEN
+// ============================================================================
+function VictoryScreen({ totalScore, levelScores, onRestart, onMenu }) {
+  return (
+    <div className="max-w-2xl mx-auto w-full bg-slate-800 border border-slate-700 rounded-3xl p-6 sm:p-8 text-center space-y-6 shadow-2xl my-auto">
+      <div className="inline-flex p-4 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-400 animate-bounce">
+        <Trophy className="w-16 h-16" />
+      </div>
+
+      <div>
+        <span className="text-xs font-extrabold text-amber-400 uppercase tracking-widest">Selamat! Petualangan Selesai</span>
+        <h2 className="text-3xl font-black text-white mt-1">Gelar: WARGA TELADAN 7KAIH</h2>
+        <p className="text-xs text-slate-300 mt-2 max-w-md mx-auto">
+          Kamu telah berhasil menguasai dan menerapkan ke-7 nilai penting dalam kehidupan bermasyarakat!
+        </p>
+      </div>
+
+      <div className="bg-slate-900 border border-slate-700 p-4 rounded-2xl">
+        <span className="text-xs text-slate-400 font-bold">Total Poin Kontribusi Warga:</span>
+        <div className="text-3xl font-black text-amber-400 mt-1">{totalScore} Pts</div>
+      </div>
+
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-left">
+        {MINIGAMES_DATA.map((item, idx) => (
+          <div key={item.id} className="bg-slate-900/60 border border-slate-700/60 p-2.5 rounded-xl">
+            <span className="text-[10px] text-slate-400 block truncate">{item.title}</span>
+            <span className="text-xs font-bold text-emerald-400">{levelScores[idx]} Pts</span>
+          </div>
+        ))}
+      </div>
+
+      <div className="flex flex-col sm:flex-row gap-3 pt-2">
+        <button 
+          onClick={onRestart}
+          className="flex-1 py-3.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black rounded-xl text-xs transition flex items-center justify-center gap-2"
+        >
+          <RefreshCw className="w-4 h-4" /> Main Lagi
+        </button>
+        <button 
+          onClick={onMenu}
+          className="flex-1 py-3.5 bg-slate-700 hover:bg-slate-600 text-slate-200 font-bold rounded-xl text-xs transition"
+        >
+          Menu Utama
+        </button>
+      </div>
+    </div>
+  );
+}
